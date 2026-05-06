@@ -1,7 +1,8 @@
 import joblib
 import torch
 from preprocess import load_and_preprocess
-from train_nn import Net
+from model_nn import Net
+import pandas as pd
 
 # Load data (for scaler consistency)
 X, y, scaler = load_and_preprocess("../data/network_data.csv")
@@ -15,19 +16,20 @@ nn_model.load_state_dict(torch.load("../models/nn_model.pth"))
 nn_model.eval()
 
 def predict(sample):
-    sample = scaler.transform([sample])
+    columns = ['duration','protocol_type','src_bytes','dst_bytes','flag']
+    sample_df = pd.DataFrame([sample], columns=columns)
+    
+    sample_scaled = scaler.transform(sample_df)
 
-    # ML prediction
-    ml_pred = ml_model.predict_proba(sample)[0][1]
+    ml_pred = ml_model.predict_proba(sample_scaled)[0][1]
 
-    # NN prediction
-    sample_tensor = torch.tensor(sample, dtype=torch.float32)
+    sample_tensor = torch.tensor(sample_scaled, dtype=torch.float32)
     nn_pred = nn_model(sample_tensor).item()
 
-    # Final hybrid score
     final = 0.5 * ml_pred + 0.5 * nn_pred
 
     return final
+
 
 # Example test
 sample = [10, 1, 1000, 500, 2]
