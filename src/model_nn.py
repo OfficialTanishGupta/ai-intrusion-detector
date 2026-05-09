@@ -5,51 +5,62 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from preprocess import load_and_preprocess
 
+# Updated Multi-class Network
 class Net(nn.Module):
     def __init__(self, input_dim):
         super(Net, self).__init__()
-        self.layer1 = nn.Linear(input_dim, 64)
-        self.layer2 = nn.Linear(64, 32)
-        self.layer3 = nn.Linear(32, 1)
-        self.sigmoid = nn.Sigmoid()
+        self.fc1 = nn.Linear(input_dim, 32)
+        self.fc2 = nn.Linear(32, 16)
+        self.fc3 = nn.Linear(16, 5) # 5 output classes
 
     def forward(self, x):
-        x = torch.relu(self.layer1(x))
-        x = torch.relu(self.layer2(x))
-        x = self.sigmoid(self.layer3(x))
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x) # No sigmoid here; CrossEntropyLoss handles softmax internally
         return x
 
+# Load and prepare data
 X, y, _ = load_and_preprocess("../data/network_data.csv")
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
+# Convert to tensors
 X_train = torch.tensor(X_train, dtype=torch.float32)
 X_test = torch.tensor(X_test, dtype=torch.float32)
-y_train = torch.tensor(y_train.values, dtype=torch.float32).view(-1, 1)
-y_test = torch.tensor(y_test.values, dtype=torch.float32).view(-1, 1)
 
+# For multi-class, labels must be Long tensors and 1D for CrossEntropyLoss
+y_train = torch.tensor(y_train.values, dtype=torch.long)
+y_test = torch.tensor(y_test.values, dtype=torch.long)
+
+# Initialize model
 model = Net(X_train.shape[1])
-criterion = nn.BCELoss()
+
+# Use CrossEntropyLoss for multi-class classification
+criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 
+# Training loop
 for epoch in range(50):
     optimizer.zero_grad()
     outputs = model(X_train)
     loss = criterion(outputs, y_train)
     loss.backward()
     optimizer.step()
+    
     if epoch % 10 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
 
+# Evaluation
 with torch.no_grad():
-    predictions = model(X_test)
-    predicted = (predictions > 0.5).float()
+    outputs = model(X_test)
+    # Get the index of the highest logit as the predicted class
+    _, predicted = torch.max(outputs, 1)
     accuracy = accuracy_score(y_test.numpy(), predicted.numpy())
 
-print(f"\n✅ NN Accuracy: {accuracy:.4f}")
+print(f"\n✅ Multi-class NN Accuracy: {accuracy:.4f}")
 
-
+# Save
 torch.save(model.state_dict(), "../models/nn_model.pth")
-print("✅ NN model saved")
+print("✅ Multi-class model saved")
